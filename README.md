@@ -1,30 +1,43 @@
-# presto-tpcds
+
 Set up environment to run the TPC-DS benchmark on Presto
 
-# Requirements
+##### Requirements
 
 Docker 25.0.3
 
-## Step 0: Set environment variables
+##### Step 0: Set environment variables
 
-Set PRESTO_WORK_DIR and PRESTO_DATA_DIR in ~/.bashrc.
+```shell script
+echo 'export PRESTO_WORK_DIR=<presto_work_dir>' >> ~/.bashrc
+echo 'export PRESTO_DATA_DIR=<presto_data_dir>' >> ~/.bashrc
+source ~/.bashrc
+```
 
-Run source ~/.bashrc
+##### Step 1: Run node_setup.sh
 
-## Step 1: Run node_setup.sh
+```shell script
+./node_setup.sh
+```
 
-Run ./node_setup.sh
+This results in the creation of four docker containers: 
 
-This results in the creation of four docker containers: Postgresql, hive, minio, and coordinator
+* Postgresql 
+* hive 
+* minio 
+* coordinator (presto)
 
-## Step 2: Create TPC-DS bucket
+These containers exist within a docker network (prestonet) and can communicate with each other. 
 
-Go to PRESTO_WORK_DIR/tpcds
+##### Step 2: Create TPC-DS bucket
 
-Run ./create_minio_tpcds_bucket.sh
+```shell script
+cd PRESTO_WORK_DIR/tpcds
+./create_minio_tpcds_bucket.sh
+```
 
-## Step 3: Create TPC-DS data set
+##### Step 3: Create TPC-DS data set
 
+```shell script
 docker exec docker exec -it coordinator /bin/bash
-
 presto-cli --file tpcds/create_tables_tpcds_sf1.sql
+```
