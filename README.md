@@ -41,3 +41,10 @@ cd PRESTO_WORK_DIR/tpcds
 docker exec docker exec -it coordinator /bin/bash
 presto-cli --file tpcds/create_tables_tpcds_sf1.sql
 ```
+
+##### Script : Run TPC-DS create tables and queries
+
+```shell script
+cd PRESTO_WORK_DIR
+./run_query.sh tpcds/create_tables_tpcds_sf1.sql
+```
