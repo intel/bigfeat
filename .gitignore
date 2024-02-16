@@ -3,3 +3,7 @@
 **/apache-hive-*/
 **/hadoop*/
 *.jar*
+
+opt
+generated
+config/presto_single_node_config/node.properties

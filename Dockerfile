@@ -42,7 +42,7 @@ RUN rm -f /opt/apache-hive-3.1.3-bin/lib/guava-19.0.jar \
 WORKDIR /opt/apache-hive-3.1.3-bin
 
 # copy Hive metastore configuration file
-COPY hive-site.xml /opt/apache-hive-3.1.3-bin/conf/
+COPY config/hive_config/hive-site.xml /opt/apache-hive-3.1.3-bin/conf/
 
 # Hive metastore data folder
 VOLUME ["/user/hive/warehouse"]
