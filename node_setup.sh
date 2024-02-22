@@ -10,8 +10,8 @@ mkdir ${PRESTO_DATA_DIR}/postgresql
 mkdir ${PRESTO_DATA_DIR}/postgresql/data
 
 # copy the configuration and tpcds files
-cp -r ./config ${PRESTO_WORK_DIR}/
-cp -r ./tpcds ${PRESTO_WORK_DIR}/
+sudo cp -r ./config ${PRESTO_WORK_DIR}/
+sudo cp -r ./tpcds ${PRESTO_WORK_DIR}/
 
 
 # Stop existing containers
