@@ -1,7 +1,7 @@
 #!/bin/bash
 
 ### Modify parameters here ###
-SCALE_FACTOR=1
+SCALE_FACTOR=$1
 ##############################
 
 ### Create the minio bucket ###
@@ -18,17 +18,15 @@ docker exec -it minio mc mb myminio/${BUCKET}
 SCHEMA=hive.tpcds_sf${SCALE_FACTOR}_parquet
 GENPATH=generated
 
-
 mkdir -p ${GENPATH}
 rm -f ${GENPATH}/*.sql
 cp raw/*.sql ${GENPATH}/
-
 
 for filename in ${GENPATH}/*.sql; do
     echo -e "USE ${SCHEMA};\n$(cat $filename)" > $filename
 done
 
-sed "s/sfx/sf${SCALE_FACTOR}/g" create_tables.sql > ./generated/create_sf${SCALE_FACTOR}_tables.sql
+sed "s/sfx/sf${SCALE_FACTOR}/g" create_tables.sql > ./generated/create_tables.sql
 
 ##############################
 
@@ -41,5 +39,3 @@ sudo rm -rf ${PRESTO_TPCDS}/*.sql
 sudo cp -r ./${GENPATH}/*.sql ${PRESTO_TPCDS}/
 
 ##############################
-
-

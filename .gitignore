@@ -3,6 +3,7 @@
 **/apache-hive-*/
 **/hadoop*/
 *.jar*
+*.log
 
 opt
 generated
