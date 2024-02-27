@@ -27,6 +27,7 @@ for filename in ${GENPATH}/*.sql; do
 done
 
 sed "s/sfx/sf${SCALE_FACTOR}/g" create_tables.sql > ./generated/create_tables.sql
+sed "s/sfx/sf${SCALE_FACTOR}/g" drop_tables.sql > ./generated/drop_tables.sql
 
 ##############################
 

@@ -25,9 +25,9 @@ def run_and_profile_query(query_path,
   
     print("Gathering stats for ", query_path)
 
-    with open(output_path, "w") as f:
+    with open(output_path+".out", "w") as out, open(output_path+".err", "w") as err:
         proc = subprocess.run(perf_command + docker_command + presto_command + [query_path],
-             encoding='utf-8', stderr=subprocess.STDOUT, stdout=f, timeout=timeout_in_secs)
+             encoding='utf-8', stderr=out, stdout=out, timeout=timeout_in_secs)
     
     if proc.returncode != 0:
         return 1
@@ -49,8 +49,9 @@ def prepare(scale_factor):
 Run and profile queries with scale_factor and store the output in output_dir
 """
 def run(scale_factor=1,
-        output_dir="/tmp/",
-        query_range=range(1,2)):
+        output_dir="/tmp/sf1/",
+        query_range=range(1,2),
+        drop_tables=False):
 
     # Ask the user before continuing
     print("*******************")
@@ -69,23 +70,24 @@ def run(scale_factor=1,
 
     # Run prepare to set up bucket and schema for the provided scale factor
     queries = prepare(scale_factor)
-    
-    error_log = open(output_dir+"error.log", 'a')
 
+    #TODO: This is not properly working. We need to remove the minio bucket in addition 
+    # to the schema.
+    # if drop_tables:
+    #     drop_query = "drop_tables.sql"
+    #     run_and_profile_query("./tpcds/sf" + str(scale_factor) + "/"+ drop_query, 
+    #                               output_dir+drop_query.split('.')[0])
+    
     # Run create_tables query
     create_query = "create_tables.sql"
     run_and_profile_query("./tpcds/sf" + str(scale_factor) + "/"+ create_query, 
-                                  output_dir+create_query.split('.')[0]+".log")
+                                  output_dir+create_query.split('.')[0])
 
     # Run queries
     for query in queries:
         if int(re.findall(r'\d+', query)[-1]) in query_range:
             return_code = run_and_profile_query("./tpcds/sf" + str(scale_factor) + "/"+ query, 
-                                  output_dir+query.split('.')[0]+".log")
-            if return_code != 0:
-                error_log.write(query+"\n")
-    
-    error_log.close()
+                                  output_dir+query.split('.')[0])
 
     print("*******************")
     print("scale factor: " + str(scale_factor))
