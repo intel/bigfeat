@@ -6,7 +6,7 @@ SCALE_FACTOR=$1
 
 ### Create the minio bucket ###
 
-BUCKET=tpcds-sf${SCALE_FACTOR}
+BUCKET=tpcds-sf${SCALE_FACTOR}-partitioned-dsdgen-parquet
 
 docker exec -it minio mc alias set myminio http://localhost:9000 minio minio123
 docker exec -it minio mc mb myminio/${BUCKET}
