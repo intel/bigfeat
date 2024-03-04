@@ -6,6 +6,6 @@
 *.log
 
 opt
-generated
+tpcds/queries/generated
 tpcds/sf*/
 config/presto_single_node_config/node.properties
