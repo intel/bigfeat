@@ -21,6 +21,7 @@ GENPATH=generated
 mkdir -p ${GENPATH}
 rm -f ${GENPATH}/*.sql
 cp raw/*.sql ${GENPATH}/
+cp feature_engineering/*.sql ${GENPATH}/
 
 for filename in ${GENPATH}/*.sql; do
     echo -e "USE ${SCHEMA};\n$(cat $filename)" > $filename
