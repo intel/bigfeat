@@ -1,7 +1,4 @@
 #!/usr/bin/env python
-# coding: utf-8
-
-# In[ ]:
 
 
 # TODO: Create a graph that capture tpcds schema. Nodes: Tables; Edges: Tables are joinable; 
@@ -11,9 +8,6 @@
 # TODO: Add filtering of columns based on input from the user
 # TODO: Make a plan to understand how to do joins
 # TODO: Create a dictionary of columns to idx.
-
-
-# In[ ]:
 
 
 from pyhive import presto
@@ -59,8 +53,48 @@ for column in result:
     print(column)
 
 
+"""
+Input
+    column    -- contains name and type of the column
+    precision -- total number of digits (default 18)
+    scale     -- number of digits in the fractional part (default 0)
+Returns a SQL function as a string to convert column data type to fixed precision
+"""
+def convert_col_type_to_decimal(column, precision=38, scale=0):
+    cols = column.split()
+    if len(cols) != 2:
+        print("Format incorrect: {column}. Aborting.")
+        sys.exit()
 
-# In[ ]:
+    if any(x in cols[1] for x in ['boolean', 'int', 'real', 'double', 'decimal']):
+        query = f'CAST({cols[0]} AS DECIMAL({precision},{scale}))'
+
+    elif any(x in cols[1] for x in ['char', 'varbinary', 'uuid']):
+        query = f'CAST(from_big_endian_64(xxhash64(to_utf8(\
+                       CAST({cols[0]} AS VARCHAR)))) AS DECIMAL({precision},{scale}))'
+    else:
+        print("Can't support FP conversion for {column}. Aborting.")
+        sys.exit()
+
+    return query
+
+
+"""
+Input
+    op    -- SQL operation type - 'AND', 'OR'
+    attrs -- list of join attributes (default is None)
+Returns a SQL WHERE clause as a string
+"""
+def sql_op(op, attrs=None):
+    if not attrs:
+        return ''
+    elif len(attrs) == 1:
+        return attrs[0]
+
+    clause = '(' + attrs[0]
+    for attr in attrs[1:]:
+        clause += ' ' + op + ' ' + attr
+    return clause + ')'
 
 
 """
@@ -70,75 +104,77 @@ Input
                 If none, use all columns in the feature map. 
 Returns a SQL query as a string to generate dense feature maps
 """
-
 def generate_dense_feature_map_query(db,
                                      tables, 
-                                     columns=None):
-    
+                                     columns=None,
+                                     where=None):
     """
     Check if table exists in columns
     """
-    
     db.query("show tables")
     result = db.get_result()
     
     for table in tables:
-
         if table not in list(result['Table']):
             print(f'Table {table} does not exist!')
             return -1
 
+    # Sounak: What happens if columns arg is not empty; not handled in code
     """
     Get list of columns from all tables
     """
-    
     columns = []
-
     for table in tables:
-
         sql = f'SHOW columns FROM {table}'
         db.query(sql)
-        columns.append(db.get_result())
-
-    all_columns = pd.concat(columns)
+        res = db.get_result().to_dict()
+        columns.extend([x + ' ' + y for x,y in zip(res['Column'].values(), res['Type'].values())])
 
     """
     Filter out all columns that are foreign keys
     """
+    all_columns = [entry for entry in columns if '_sk ' not in entry]
 
-    all_columns = all_columns[~all_columns['Column'].str.contains('sk')]
-
-    # WASAY: Hash function goes here
-    print(all_columns)
-
+    """
+    Generate decimal conversion subquery for all columns
+    Implement a hash value for char array and varchar data types
+    """
+    hashed_columns = []
+    for column in all_columns:
+        hashed_columns.append(convert_col_type_to_decimal(column))
 
     """
     Create list of idx and column names to build the map from
     """
-
-    # WASAY: Replace the name with the hash output
-
-    list_of_columns = list(all_columns['Column'])
-    list_of_idx = [str(i) for i in range(len(list_of_columns))]
+    list_of_idx = [str(i) for i in range(len(hashed_columns))]
 
     """
     Create different subsets of the query
     """
     create_query = 'df'
-    map_query = f'MAP(ARRAY[{",".join(list_of_idx)}],ARRAY[{",".join(list_of_columns)}])'
+    map_query = f'MAP(ARRAY[{",".join(list_of_idx)}],ARRAY[{",".join(hashed_columns)}])'
     from_query = f'{",".join(tables)}'
-    where_query = ''
 
-    query = f'CREATE TABLE {create_query} AS SELECT {map_query} FROM {from_query} WHERE {where_query};'
+    """
+    Generate the final query
+    """
+    # Sounak: CREATE TABLE IF NOT EXISTS {tablename} WITH (format='PARQUET') AS
+    query = f'CREATE TABLE {create_query} AS SELECT {map_query} FROM {from_query}'
+    if not where:
+        query += f';'
+    else:
+        query += f' WHERE {where};'
+
     print(format_sql(query))
 
 
-# In[ ]:
+cond1  = 'web_sales.ws_bill_customer_sk = customer.c_customer_sk'
+cond2a = 'web_sales.ws_bill_customer_sk = web_returns.wr_refunded_customer_sk'
+cond2b = 'web_sales.ws_bill_customer_sk = web_returns.wr_returning_customer_sk'
+cond2  = sql_op('OR', [cond2a, cond2b])
+clause = sql_op('AND', [cond1, cond2])
 
+generate_dense_feature_map_query(db=db,
+                                 tables=['customer','web_returns','web_sales'],
+                                 where=clause)
 
-generate_dense_feature_map_query(db=db, tables=['customer','web_returns','web_sales'])
-
-
-# 
-
-# 
