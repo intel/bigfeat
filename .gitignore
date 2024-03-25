@@ -9,3 +9,4 @@ opt
 tpcds/queries/generated
 tpcds/sf*/
 config/presto_single_node_config/node.properties
+*/__pycache__/*
