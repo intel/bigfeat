@@ -15,22 +15,22 @@ class DB:
         connection_string = f'{database}://{ip}:{port}/{catalog}/{schema}'
         self.engine = create_engine(connection_string)
         self.cursor = self.engine.connect()
-    
-    def query(self, sql):
-        self.result = self.cursor.execute(text(sql))
+
+    def query(self, sql, direct = False):
+        self.result = self.cursor.exec_driver_sql(sql) if direct else self.cursor.execute(text(sql))
         return self.result
-    
+
     def get_result(self,
                limit = None,
                format="pd"):
-        
+ 
         if format == "pd":
             if limit == None:
                 return pd.DataFrame(self.result.all())    
             
             return pd.DataFrame(self.result.fetchmany(limit))
-        
-    
+
+
 # db = DB()
 # db.query("show columns from customer")
 # result = db.get_result()
