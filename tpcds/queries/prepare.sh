@@ -1,7 +1,17 @@
 #!/bin/bash
 
-### Modify parameters here ###
-SCALE_FACTOR=$1
+### Default to scale factor of 1 if not specified
+
+if [[ $# -eq 0 ]]; then
+    SCALE_FACTOR=1
+else
+    SCALE_FACTOR=$1
+fi
+
+if ! [[ "$SCALE_FACTOR" =~ ^[0-9]+$ ]]; then
+  echo "Error: The scale factor must be an integer."
+  exit 1
+fi
 ##############################
 
 ### Create the minio bucket ###
