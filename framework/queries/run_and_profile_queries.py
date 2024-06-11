@@ -103,7 +103,7 @@ def run( scale_factor = 1,
     if reload_db:
         # Drop the tables
         drop_query = "drop_tables.sql"
-        run_and_profile_query("./tpcds/sf" + str(scale_factor) + "/" + drop_query, 
+        run_and_profile_query("./framework/sf" + str(scale_factor) + "/" + drop_query, 
                                   output_dir + "/" + drop_query.split('.')[0])
 
         command = "docker exec minio rm -rf data/tpcds-sf" + str(scale_factor) + \
@@ -117,14 +117,14 @@ def run( scale_factor = 1,
     # Run create_tables query
     if reload_db:
         create_query = "create_tables.sql"
-        run_and_profile_query("./tpcds/sf" + str(scale_factor) + "/" + create_query, \
+        run_and_profile_query("./framework/sf" + str(scale_factor) + "/" + create_query, \
                                   output_dir + "/" + create_query.split('.')[0])
 
     # Run queries
     lower, upper = query_range.split("..")
     for query in queries:
         if int(re.findall(r'\d+', query)[-1]) in range(int(lower), int(upper)):
-            return_code = run_and_profile_query("./tpcds/sf" + str(scale_factor) + "/" + query, \
+            return_code = run_and_profile_query("./framework/sf" + str(scale_factor) + "/" + query, \
                                   output_dir + "/" + query.split('.')[0])
 
     print("*******************")

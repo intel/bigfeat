@@ -1,18 +1,54 @@
-# pull docker containers
-docker pull minio/minio
-docker pull postgres
+#!/bin/bash
+
+# Set the install path via runtime arg
+INSTALL_PATH=''
+COUNT=0
+usage () { echo "Mandatory flag : -i <install_path>"; }
+
+while getopts "i:" opt; do
+    case ${opt} in
+        i ) INSTALL_PATH="${OPTARG}"
+            COUNT=$((COUNT+1))
+            ;;
+        \?) usage
+            exit 1
+            ;;
+    esac
+done
+
+shift $((OPTIND - 1))
+if [ $COUNT != 1 ]; then
+    usage
+    exit 1
+fi
+
+# Check install path exists
+if [ ! -d "${INSTALL_PATH}" ]; then
+    echo "Error: ${INSTALL_PATH} does not exist."
+    exit 1
+fi
+
+# Create the <install_path>/work/framework sub-directory
+PRESTO_WORK_DIR=${INSTALL_PATH}/work
+mkdir -p ${PRESTO_WORK_DIR}/framework
+
+# Copy config files from repo into work/config sub-directory
+sudo cp -r ./config ${PRESTO_WORK_DIR}
+
+# Create the data directory
+PRESTO_DATA_DIR=${INSTALL_PATH}/data
+mkdir -p ${PRESTO_DATA_DIR}
 
 # make data directories
 sudo rm -rf ${PRESTO_DATA_DIR}/minio/*
 sudo rm -rf ${PRESTO_DATA_DIR}/postgresql/*
-mkdir ${PRESTO_DATA_DIR}/minio
-mkdir ${PRESTO_DATA_DIR}/postgresql
-mkdir ${PRESTO_DATA_DIR}/postgresql/data
+mkdir -p ${PRESTO_DATA_DIR}/minio
+mkdir -p ${PRESTO_DATA_DIR}/postgresql
+mkdir -p ${PRESTO_DATA_DIR}/postgresql/data
 
-# copy the configuration and tpcds files
-sudo cp -r ./config ${PRESTO_WORK_DIR}/
-sudo cp -r ./tpcds ${PRESTO_WORK_DIR}/
-
+# pull docker containers
+docker pull minio/minio
+docker pull postgres
 
 # Stop existing containers
 docker stop minio; docker rm minio
@@ -51,6 +87,7 @@ docker stop minio; docker rm minio
 docker stop postgresql; docker rm postgresql
 
 # create docker network
+docker network rm --force prestonet
 docker network create --subnet=192.168.0.0/16 prestonet
 
 # restart containers as part of prestonet
@@ -73,7 +110,7 @@ docker run -d --privileged -p 9083:9083/tcp \
 sleep 10
 
 docker run -d --privileged -p 8080:8080 --net prestonet \
-        -v ${PRESTO_WORK_DIR}/tpcds:/tpcds:ro \
+        -v ${PRESTO_WORK_DIR}/framework:/framework:ro \
         -v ${PRESTO_DATA_DIR}/raptorx_cache/data:/data_cache \
         -v ${PRESTO_DATA_DIR}/raptorx_cache/fragment:/fragment_cache \
         --mount type=bind,source=${PRESTO_WORK_DIR}/config/presto_single_node_config/hive.properties,target=/opt/presto-server/etc/catalog/hive.properties \

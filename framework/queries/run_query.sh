@@ -2,7 +2,7 @@
 
 if [ "$#" -ne 1 ]; then
   echo "Arg expected: query sql file"
-  echo "Example: ./run_query.sh tpcds/create_tables_tpcds_sf1.sql"
+  echo "Example: ./run_query.sh framework/sf1/create_tables.sql"
   exit 1
 fi
 
