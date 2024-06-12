@@ -1,20 +1,7 @@
 # Feature Engineering Framework
 
 <div align="justify">
-Feature  Engineering is integral to all machine learning pipelines. It is the process through which these
-pipelines  transform  raw data  into features that  are then stored and used for several state-of-the-art
-machine learning tasks, for  instance, training and  inferring from deep learning  recommendation  models
-(DLRMs) and  fine-tuning NLP  models  through  retrieval-augmented generation (RAG).  Feature engineering
-consumes a significant portion of resources at large-scale companies; for instance, it  accounts for over
-30 percent of the power consumption of  production DLRM pipelines at Meta. Feature  engineering pipelines
-at large-scale companies such as Meta, Pinterest, and Amazon exhibit unique properties including a highly
-disaggregated hardware/software  stack, specialized nested data types, massive  data about  user browsing
-history, and high refresh rate. Existing benchmarks such as TPC-DS or FEBench do not capture all of these
-characteristics within the same benchmark. This repository presents a feature  engineering framework that
-closely  captures the  scale, data types, and query  workloads of data  pipelines at  various large-scale
-companies.
-
-Follow the instructions below to set up the Feature Engineering Framework.
+This repository contains a feature engineering framework that closely captures the scale, data types, and query workloads of feature engineering pipelines at various large-scale companies.
 </div>
 
 
@@ -48,6 +35,8 @@ The following python packages are needed:
 ```shell script
 ./node_setup.sh -i <install_path>
 ```
+<install_path> is the directory where we map volumes for various docker containers. We recommend that this directory exist outside the repo.
+
 This results in the creation of four docker containers: 
 * Postgresql 
 * hive 
@@ -70,13 +59,15 @@ cd framework/queries
 ./prepare.sh -s <scale_factor> -l <install_path>
 ```
 
+<install_path> is the same path as provided in Step 1.
+
 #### Step 3: Run queries
 
 Here is an example on how to run query 1 (sfx is sf1 for SCALE_FACTOR 1 etc.).
 
 ```shell script
 docker exec -it coordinator /bin/bash
-presto-cli --file ./framework/sf1/create_sf1_tables.sql
+presto-cli --file ./framework/sf1/create_tables.sql
 presto-cli --file ./framework/sf1/q1.sql
 ```
 
