@@ -59,8 +59,7 @@ GENPATH=generated
 
 mkdir -p ./${GENPATH}
 rm -f ./${GENPATH}/*.sql
-cp ./raw/*.sql ./${GENPATH}/
-cp ./feature_engineering/*.sql ./${GENPATH}/
+cp ./tpcds/*.sql ./${GENPATH}/
 
 for filename in ./${GENPATH}/*.sql; do
     echo -e "USE ${SCHEMA};\n$(cat $filename)" > $filename
@@ -76,6 +75,23 @@ PRESTO_TPCDS="${PRESTO_WORK_DIR}/framework/sf${SCALE_FACTOR}"
 echo "Generated path : ${PRESTO_TPCDS}"
 mkdir -p ${PRESTO_TPCDS}
 rm -rf ${PRESTO_TPCDS}/*.sql
+cp -r ./${GENPATH}/*.sql ${PRESTO_TPCDS}/
+
+##############################
+
+### Create the tables
+./run_query.sh framework/sf${SCALE_FACTOR}/create_tables.sql
+
+# Generate the click log data
+./feature_engineering/clickstream_generator.py
+
+rm -f ./${GENPATH}/*.sql
+cp ./feature_engineering/queries/*.sql ./${GENPATH}/
+
+for filename in ./${GENPATH}/*.sql; do
+    echo -e "USE ${SCHEMA};\n$(cat $filename)" > $filename
+done
+
 cp -r ./${GENPATH}/*.sql ${PRESTO_TPCDS}/
 rm -rf ./${GENPATH}
 

@@ -337,7 +337,7 @@ def gen_click_log(db, config, start_date_sk, start_time_sk, end_date_sk, end_tim
 '''
 Create Click Log Table
 '''
-def create_db_table(db, config):
+def create_db_table(db, config, run_query = False):
     fconfig = ''
     if config.file_format == FileFormat.CSV.value:
         fconfig = f'csv_separator = \',\', format = \'{config.file_format}\''
@@ -347,14 +347,21 @@ def create_db_table(db, config):
         return 'ERROR: Invalid file format \'{config.file_format.value}\''
 
     # Drop table if already exists
+    script_dir = os.path.dirname(os.path.realpath(__file__))
     sql = f'DROP TABLE IF EXISTS hive.{config.schema_name}.{config.table_name}'
-    db.query(sql)
+    with open(os.path.join(script_dir, 'queries', 'drop_click_log_table.sql'), 'w') as f:
+        f.write(format_sql(sql) + ';\n')
+    if run_query:
+        db.query(sql)
 
     # Staging table needs all columns to be varchar
     sql  = f'CREATE TABLE IF NOT EXISTS hive.{config.schema_name}.{config.table_name} ('
     sql += ','.join([key + ' ' + config.attributes[key] for key in config.attributes])
     sql += f') WITH (external_location = \'s3a://{config.minio_bucket}/{config.table_name}\', {fconfig})'
-    db.query(sql, direct = True)
+    with open(os.path.join(script_dir, 'queries', 'create_click_log_table.sql'), 'w') as f:
+        f.write(format_sql(sql) + ';\n')
+    if run_query:
+        db.query(sql, direct = True)
 
 '''
 Click Log Generator
@@ -399,7 +406,7 @@ def main():
         return exit()
 
     # Create the click log table
-    create_db_table(db, config)
+    create_db_table(db, config, run_query = False)
 
 
 if __name__ == "__main__":
