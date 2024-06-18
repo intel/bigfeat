@@ -32,8 +32,8 @@ class Action(Enum):
 
 # Enum for different file formats supported
 class FileFormat(Enum):
-    CSV      = 'csv'
-    PARQUET  = 'parquet'
+    CSV      = 'CSV'
+    PARQUET  = 'PARQUET'
 
 # Enum for status of Minio file upload
 class MinioStatus(Enum):
@@ -56,14 +56,9 @@ Click Log Config Parameter Class
 '''
 class ClickLogConfig:
 
-    attributes =  { 'cl_customer_sk' : 'VARCHAR',
-                    'cl_item_sk'     : 'VARCHAR',
-                    'cl_action'      : 'VARCHAR',
-                    'cl_action_time' : 'VARCHAR',
-                    'cl_action_date' : 'VARCHAR'
-                  }
+    attributes = [ 'cl_customer_sk', 'cl_item_sk', 'cl_session_id', 'cl_action', 'cl_action_time', 'cl_action_date' ]
 
-    partition_key = list(attributes.keys())[-1]
+    partition_key = attributes[-1]
 
     def __init__(   self,
                     minio_bucket,
@@ -71,6 +66,7 @@ class ClickLogConfig:
                     table_name,
                     max_workers                     = 8,
                     session_timeout_secs            = 1800,
+                    session_window_secs             = 7200,
                     trajectory_conversion_pct       = 2.08,
                     view_to_purchase_min_delay_secs = 30,
                     view_to_add_min_delay_secs      = 15,
@@ -94,6 +90,10 @@ class ClickLogConfig:
         # session timeout is pegged to 30 mins
         # so view, add, purchase have to happen within a 30 mins window
         self.session_timeout_secs = session_timeout_secs
+
+        # session window is pegged to 2 hrs
+        # so 2 hr sessions are packed into 12 buckets every day
+        self.session_window_secs = session_window_secs
 
         # Percent of trajectories that convert into purchases
         # 2.08% derived from https://doi.org/10.1038/s41598-020-73622-y
@@ -169,10 +169,12 @@ Return : errno, errmsg
 Error numbers (errno): MinioStatus enum
 '''
 def insert_logs(config, logs, date_sk, stime_sk, etime_sk):
-    filtered_logs  = [x for x in logs if int(x[4]) == date_sk and
-                                         int(x[3]) >= stime_sk and
-                                         int(x[3]) <= etime_sk]
-    df = pd.DataFrame(filtered_logs, columns = list(config.attributes.keys()))
+    date_index = config.attributes.index('cl_action_date')
+    time_index = config.attributes.index('cl_action_time')
+    filtered_logs  = [x for x in logs if int(x[date_index]) == date_sk and
+                                         int(x[time_index]) >= stime_sk and
+                                         int(x[time_index]) <= etime_sk]
+    df = pd.DataFrame(filtered_logs, columns = config.attributes)
 
     # MinIO upload
     client = Minio('localhost:9000', access_key='minio', secret_key='minio123', secure=False)
@@ -223,6 +225,13 @@ def insert_logs(config, logs, date_sk, stime_sk, etime_sk):
     return MinioStatus.SUCCESS.value, msg
 
 '''
+Generate session id
+Equals '<customer_sk><date_sk><time in 2 hr slots>'
+'''
+def gen_session_id(config, customer_sk, date_sk, time_sk):
+    return int(f'{customer_sk}{date_sk}{str(time_sk // config.session_window_secs).zfill(2)}')
+
+'''
 Generate Conversion Class Trajectory Logs. These end in purchase.
 '''
 def gen_conversion_logs(db, config, df_web_sales):
@@ -232,19 +241,20 @@ def gen_conversion_logs(db, config, df_web_sales):
         item_sk          = df_web_sales['ws_item_sk'][indx].astype(int)
         purchase_date_sk = df_web_sales['ws_sold_date_sk'][indx].astype(int)
         purchase_time_sk = df_web_sales['ws_sold_time_sk'][indx].astype(int)
+        session_id       = gen_session_id(config, customer_sk, purchase_date_sk, purchase_time_sk)
 
         # generate action logs for view, add and purchase. modify time for view and add
         view_delta = random.randint(config.view_to_purchase_min_delay_secs, config.session_timeout_secs)
         view_date_sk, view_time_sk = subtract_time_delta(purchase_date_sk, purchase_time_sk, view_delta, config)
-        view_log = [customer_sk, item_sk, Action.VIEW_ITEM.value, view_time_sk, view_date_sk]
+        view_log = [customer_sk, item_sk, session_id, Action.VIEW_ITEM.value, view_time_sk, view_date_sk]
         logs.append([str(x) for x in view_log])
 
         # Add to cart delay after view is logged and before purchase
         add_delta = random.randint(config.view_to_add_min_delay_secs, view_delta)
         add_date_sk, add_time_sk = add_time_delta(view_date_sk, view_time_sk, add_delta, config)
-        add_log = [customer_sk, item_sk, Action.ADD_TO_CART.value, add_time_sk, add_date_sk]
+        add_log = [customer_sk, item_sk, session_id, Action.ADD_TO_CART.value, add_time_sk, add_date_sk]
         logs.append([str(x) for x in add_log])
-        purchase_log = [customer_sk, item_sk, Action.PURCHASE.value, purchase_time_sk, purchase_date_sk]
+        purchase_log = [customer_sk, item_sk, session_id, Action.PURCHASE.value, purchase_time_sk, purchase_date_sk]
         logs.append([str(x) for x in purchase_log])
 
     return logs
@@ -266,8 +276,9 @@ def gen_non_conversion_logs(db, config, all_customers, all_items, trajectory_cnt
             view_time_sk = random.randint(start_time_sk, secs_per_day-1)
 
         customer_sk  = random.choice(all_customers)
+        session_id   = gen_session_id(config, customer_sk, view_date_sk, view_time_sk)
         item_sk      = random.choice(all_items)
-        view_log     = [customer_sk, item_sk, Action.VIEW_ITEM.value, view_time_sk, view_date_sk]
+        view_log     = [customer_sk, item_sk, session_id, Action.VIEW_ITEM.value, view_time_sk, view_date_sk]
         logs.append([str(x) for x in view_log])
 
         # If customer adds item to cart
@@ -275,13 +286,13 @@ def gen_non_conversion_logs(db, config, all_customers, all_items, trajectory_cnt
             # Add to cart delay after view is logged and before removing from cart
             add_delta = random.randint(config.view_to_add_min_delay_secs, config.session_timeout_secs)
             add_date_sk, add_time_sk = add_time_delta(view_date_sk, view_time_sk, add_delta, config)
-            add_log = [customer_sk, item_sk, Action.ADD_TO_CART.value, add_time_sk, add_date_sk]
+            add_log = [customer_sk, item_sk, session_id, Action.ADD_TO_CART.value, add_time_sk, add_date_sk]
             logs.append([str(x) for x in add_log])
 
             # Remove item from cart
             remove_delta = random.randint(config.add_to_remove_min_delay_secs, config.add_to_remove_max_delay_secs)
             remove_date_sk, remove_time_sk = add_time_delta(add_date_sk, add_time_sk, remove_delta, config)
-            remove_log = [customer_sk, item_sk, Action.REMOVE_FROM_CART.value, remove_time_sk, remove_date_sk]
+            remove_log = [customer_sk, item_sk, session_id, Action.REMOVE_FROM_CART.value, remove_time_sk, remove_date_sk]
             logs.append([str(x) for x in remove_log])
 
     return logs
@@ -310,7 +321,7 @@ def gen_click_log(db, config, start_date_sk, start_time_sk, end_date_sk, end_tim
     print(f'Non-Conversion Click-Log Entries = {len(nc_logs)}')
 
     logs = [*c_logs,*nc_logs]
-    logs.sort(key = lambda row: (row[3], row[4]))
+    logs.sort(key = lambda row: (int(row[4]), row[5]))
     print(f'Total Click-Log Entries          = {len(logs)}')
 
     # Create the list of days, start time and end time
@@ -337,7 +348,7 @@ def gen_click_log(db, config, start_date_sk, start_time_sk, end_date_sk, end_tim
 '''
 Create Click Log Table
 '''
-def create_db_table(db, config, run_query = False):
+def create_db_table(db, config):
     fconfig = ''
     if config.file_format == FileFormat.CSV.value:
         fconfig = f'csv_separator = \',\', format = \'{config.file_format}\''
@@ -346,22 +357,40 @@ def create_db_table(db, config, run_query = False):
     else:
         return 'ERROR: Invalid file format \'{config.file_format.value}\''
 
+    # Table names, query filenames and path
+    staging_table   = f'{config.table_name}'
+    create_filename = 'queries/create_click_log_table.sql'
+    formatted_table = f'{config.table_name}_formatted'
+    drop_filename   = 'queries/drop_click_log_table.sql'
+    script_dir      = os.path.dirname(os.path.realpath(__file__))
+
     # Drop table if already exists
-    script_dir = os.path.dirname(os.path.realpath(__file__))
-    sql = f'DROP TABLE IF EXISTS hive.{config.schema_name}.{config.table_name}'
-    with open(os.path.join(script_dir, 'queries', 'drop_click_log_table.sql'), 'w') as f:
-        f.write(format_sql(sql) + ';\n')
-    if run_query:
-        db.query(sql)
+    sql = f'DROP TABLE IF EXISTS {formatted_table};\n'
+    with open(os.path.join(script_dir, drop_filename), 'w') as f:
+        f.write(sql)
 
     # Staging table needs all columns to be varchar
-    sql  = f'CREATE TABLE IF NOT EXISTS hive.{config.schema_name}.{config.table_name} ('
-    sql += ','.join([key + ' ' + config.attributes[key] for key in config.attributes])
-    sql += f') WITH (external_location = \'s3a://{config.minio_bucket}/{config.table_name}\', {fconfig})'
-    with open(os.path.join(script_dir, 'queries', 'create_click_log_table.sql'), 'w') as f:
-        f.write(format_sql(sql) + ';\n')
-    if run_query:
-        db.query(sql, direct = True)
+    sql  = f'CREATE TABLE IF NOT EXISTS {staging_table} ('
+    sql += ', '.join([attribute + ' VARCHAR' for attribute in config.attributes])
+    sql += f') WITH (external_location = \'s3a://{config.minio_bucket}/{config.table_name}\', {fconfig});\n'
+    with open(os.path.join(script_dir, create_filename), 'w') as f:
+        f.write(sql)
+
+    # Drop staging table if already exists
+    sql = f'DROP TABLE IF EXISTS {staging_table};\n'
+    with open(os.path.join(script_dir, drop_filename), 'a') as f:
+        f.write(sql)
+
+    # Click log table is built off the staging table
+    sql  = f'CREATE TABLE IF NOT EXISTS {formatted_table} '
+    sql += f'WITH ({fconfig}, partitioned_by = ARRAY[\'{config.partition_key}\']) AS SELECT '
+    sql += ', '.join(['TRY_CAST(' + attribute + ' AS BIGINT) AS ' + attribute for attribute in config.attributes])
+    sql += f' FROM {staging_table};\n'
+    with open(os.path.join(script_dir, create_filename), 'a') as f:
+        f.write(sql)
+
+    print(f'\'{formatted_table}\' and \'{staging_table}\' tables can be dropped in sequence using \'{drop_filename}\'')
+    print(f'\'{staging_table}\' and \'{formatted_table}\' tables can be created in sequence using \'{create_filename}\'')
 
 '''
 Click Log Generator
@@ -406,7 +435,7 @@ def main():
         return exit()
 
     # Create the click log table
-    create_db_table(db, config, run_query = False)
+    create_db_table(db, config)
 
 
 if __name__ == "__main__":

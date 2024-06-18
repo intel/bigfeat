@@ -72,7 +72,6 @@ sed "s/sfx/sf${SCALE_FACTOR}/g" drop_tables.sql   > ./${GENPATH}/drop_tables.sql
 
 ### Copy the queries to presto container ###
 PRESTO_TPCDS="${PRESTO_WORK_DIR}/framework/sf${SCALE_FACTOR}"
-echo "Generated path : ${PRESTO_TPCDS}"
 mkdir -p ${PRESTO_TPCDS}
 rm -rf ${PRESTO_TPCDS}/*.sql
 cp -r ./${GENPATH}/*.sql ${PRESTO_TPCDS}/
@@ -80,10 +79,20 @@ cp -r ./${GENPATH}/*.sql ${PRESTO_TPCDS}/
 ##############################
 
 ### Create the tables
+printf "\n## Generate the TPC-DS dataset and create the tables ##\n"
 ./run_query.sh framework/sf${SCALE_FACTOR}/create_tables.sql
 
 # Generate the click log data
-./feature_engineering/clickstream_generator.py
+printf "\n## Generate the click-log dataset and queries ##\n"
+./feature_engineering/clickstream_generator.py \
+        --bucket     "tpcds-sf${SCALE_FACTOR}-partitioned-dsdgen-parquet" \
+        --schema     "tpcds_sf${SCALE_FACTOR}_parquet" \
+        --table      "click_log" \
+        --workers    8 \
+        --start-date 2450815 \
+        --start-time 0 \
+        --end-date   2450820 \
+        --stop-time  86399
 
 rm -f ./${GENPATH}/*.sql
 cp ./feature_engineering/queries/*.sql ./${GENPATH}/
@@ -94,5 +103,6 @@ done
 
 cp -r ./${GENPATH}/*.sql ${PRESTO_TPCDS}/
 rm -rf ./${GENPATH}
+printf "\nPresto Mount Path for Queries: ${PRESTO_TPCDS}\n\n"
 
 ##############################
