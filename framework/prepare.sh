@@ -40,6 +40,13 @@ if ! [[ "$SCALE_FACTOR" =~ ^[0-9]+$ ]]; then
     exit 1
 fi
 
+# if this scale factor was already run, exit
+
+if test -d "${PRESTO_WORK_DIR}/framework/sf${SCALE_FACTOR}"; then
+    echo "Prepare script was already run for this scale factor. Exiting ... "
+    exit 1
+fi
+
 ##############################
 
 ### Create the minio bucket ###
@@ -105,4 +112,9 @@ cp -r ./${GENPATH}/*.sql ${PRESTO_TPCDS}/
 rm -rf ./${GENPATH}
 printf "\nPresto Mount Path for Queries: ${PRESTO_TPCDS}\n\n"
 
+##############################
+
+##############################
+# Copy run_query to the work directory
+cp run_query.sh ${PRESTO_WORK_DIR}
 ##############################

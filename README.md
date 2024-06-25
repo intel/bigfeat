@@ -98,7 +98,7 @@ presto-cli --file /framework/sf1/create_click_log_table.sql
 >
 > ```shell script
 > cd <install_path>/work
-> <repo_path>/framework/run_query.sh framework/sf1/create_click_log_table.sql
-> <repo_path>/framework/run_query.sh framework/sf1/q1.sql
+> run_query.sh framework/sf1/create_click_log_table.sql
+> run_query.sh framework/sf1/q1.sql
 > ```
 
