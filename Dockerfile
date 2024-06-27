@@ -1,11 +1,8 @@
-FROM centos:7
+FROM centos:latest
 
 ENV container docker
 
-LABEL maintainer="Jantz"
-
-# copy Certificate Authority file
-#COPY ca.pem /etc/pki/ca-trust/source/anchors/
+LABEL maintainer="bigfeat"
 
 # copy Hive standalone package
 COPY apache-hive-3.1.3-bin /opt/apache-hive-3.1.3-bin/
@@ -16,18 +13,17 @@ COPY hadoop-3.3.6 /opt/hadoop-3.3.6/
 # copy Postgres or MySQL JDBC connector
 COPY postgresql-42.6.0.jar /opt/apache-hive-3.1.3-bin/lib/
 
-# add Certificate Authority to database
-#RUN update-ca-trust
-
 WORKDIR /install
 
-# Set the proxy
-RUN echo "proxy=http://proxy-dmz.intel.com:912" >> /etc/yum.conf
+RUN echo "proxy=$http_proxy" >> /etc/yum.conf
+RUN cd /etc/yum.repos.d/
+RUN sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-*
+RUN sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-*
+RUN yum update -y
 
 # install Java 1.8 and clean cache
 RUN yum install -y java-1.8.0-openjdk-devel \
   && yum clean all
-#RUN apt install openjdk-8-jdk
 
 # environment variables requested by Hive metastore
 ENV JAVA_HOME=/usr/lib/jvm/java-1.8.0-openjdk

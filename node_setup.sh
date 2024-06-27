@@ -2,22 +2,19 @@
 
 # Set the install path via runtime arg
 INSTALL_PATH=''
-COUNT=0
-usage () { echo "Mandatory flag : -i <install_path>"; }
+PROXY=''
+usage () { echo "Arguments : -i <install_path> [-p <http_proxy_url:port>]"; }
 
-while getopts "i:" opt; do
+while getopts "i:p:" opt; do
     case ${opt} in
-        i ) INSTALL_PATH="${OPTARG}"
-            COUNT=$((COUNT+1))
-            ;;
-        \?) usage
-            exit 1
-            ;;
+        i ) INSTALL_PATH=${OPTARG};;
+        p ) PROXY=${OPTARG};;
+        \?) usage; exit 1;;
     esac
 done
 
 shift $((OPTIND - 1))
-if [ $COUNT != 1 ]; then
+if [ -z "${INSTALL_PATH}" ]; then
     usage
     exit 1
 fi
@@ -57,11 +54,17 @@ docker stop hive; docker rm hive
 docker stop coordinator; docker rm coordinator
 
 # Run Minio and Docker
-docker run -d --privileged -p 9000:9000 -p 9001:9001 \
+if [ -z "${PROXY}" ]; then
+    docker run -d --privileged -p 9000:9000 -p 9001:9001 \
         --name minio -v ${PRESTO_DATA_DIR}/minio:/data:z \
-        -e http_proxy=http://proxy-chain.intel.com:912 \
-        -e https_proxy=http://proxy-chain.intel.com:912 \
         quay.io/minio/minio server /data --console-address ":9001"
+else
+    docker run -d --privileged -p 9000:9000 -p 9001:9001 \
+        --name minio -v ${PRESTO_DATA_DIR}/minio:/data:z \
+        -e http_proxy="${PROXY}" \
+        -e https_proxy="${PROXY}" \
+        quay.io/minio/minio server /data --console-address ":9001"
+fi
 
 docker run -itd --privileged -h postgresql \
         -e POSTGRES_USER=admin -e POSTGRES_PASSWORD=admin -p 5433:5432 \
@@ -78,9 +81,23 @@ docker exec -it minio mc admin user svcacct add --access-key "minio" --secret-ke
 docker exec -it postgresql psql -U admin -c "drop database metadata"
 docker exec -it postgresql psql -U admin -c "create database metadata"
 
-# create hive container
+# Download dependencies - apache, hadoop and postgresql
 ./get_dep.sh
-./dockerbuild.sh
+
+# create hive container
+if [ -z "${PROXY}" ]; then
+    docker build --no-cache \
+        --add-host=postgresql:172.17.0.3 \
+        --add-host=minio:172.17.0.2 \
+        -t hive .
+else
+    docker build --no-cache \
+        --add-host=postgresql:172.17.0.3 \
+        --add-host=minio:172.17.0.2 \
+        --build-arg http_proxy="${PROXY}" \
+        --build-arg https_proxy="${PROXY}" \
+        -t hive .
+fi
 
 # stop minio and postgresql
 docker stop minio; docker rm minio
@@ -91,12 +108,19 @@ docker network rm --force prestonet
 docker network create --subnet=192.168.0.0/16 prestonet
 
 # restart containers as part of prestonet
-docker run -d --privileged -p 9000:9000 -p 9001:9001 \
+if [ -z "${PROXY}" ]; then
+    docker run -d --privileged -p 9000:9000 -p 9001:9001 \
         --net prestonet --name minio \
         -v ${PRESTO_DATA_DIR}/minio:/data:z \
-        -e http_proxy=http://proxy-chain.intel.com:912 \
-        -e https_proxy=http://proxy-chain.intel.com:912 \
         quay.io/minio/minio server /data --console-address ":9001"
+else
+    docker run -d --privileged -p 9000:9000 -p 9001:9001 \
+        --net prestonet --name minio \
+        -v ${PRESTO_DATA_DIR}/minio:/data:z \
+        -e http_proxy="${PROXY}" \
+        -e https_proxy="${PROXY}" \
+        quay.io/minio/minio server /data --console-address ":9001"
+fi
 
 docker run -itd --privileged -h postgresql \
         -e POSTGRES_USER=admin -e POSTGRES_PASSWORD=admin -p 5433:5432 \

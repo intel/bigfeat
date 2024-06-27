@@ -1,8 +1,8 @@
-# **Big-Feat: Feature Engineering Framework**
+# `bigFEAT` : A Feature Engineering Framework for e-Commerce Clicklogs
 
 <div align="justify">
-This repository contains Big-feat, a feature engineering framework that closely captures the scale, data types, and query
-workloads of feature engineering pipelines at various large-scale companies.<br />
+This repository contains bigFEAT, a feature engineering framework that closely captures the scale, data types,
+and query workloads of feature engineering pipelines at various large-scale companies.<br />
 <br />
 We narrow the scope to the e-Commerce scenario in TPC-DS and introduce User Browser History so that our data
 generator can produce the interaction between features and user-behaviors within a user-session on a sequential
@@ -10,7 +10,7 @@ timeline.
 </div>
 
 
-### **License**
+### License
 
 <div align="justify">
 The SQL table creation and dataset derive from material licensed as follows:<br />
@@ -28,9 +28,9 @@ You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2
 </div>
 
 
-### **Requirements**
+### Requirements
 
-The following packages are needed:
+The following `packages` are needed:
 * Docker 25.0.3
 * OpenJDK 1.8.0
 
@@ -38,7 +38,7 @@ The following packages are needed:
 > Set up docker to run without sudo access. Please refer to this post-installation
   [**guide**](https://docs.docker.com/engine/install/linux-postinstall/)
 
-The following python packages are needed:
+The following `python packages` are needed:
 * numpy
 * sqlalchemy
 * 'pyhive[presto]'
@@ -48,13 +48,25 @@ The following python packages are needed:
 * pyarrow
 
 
-### **Step 1: Run node_setup.sh**
+### `Step 1` : Run node_setup.sh
 
 ```shell script
-./node_setup.sh -i <install_path>
+./node_setup.sh -i <install_path> [ -p <http_proxy_url:port> ]
 ```
-<install_path> is the directory where we map volumes for various docker containers. We recommend that this
-directory exist outside the repo.
+`<install_path>` is the directory where we map volumes for various docker containers. We recommend
+that this directory exist outside the repo.
+
+`Optional` : Add proxy `<URL>:<port>` for docker containers using the `-p` flag.
+
+Example:
+
+```shell script
+# If proxy is NOT required
+./node_setup.sh -i <install_path>
+
+# When proxy needs to be used
+./node_setup.sh -i <install_path> -p http://proxy.example.com:3128
+```
 
 This results in the creation of four docker containers: 
 * Postgresql 
@@ -64,29 +76,31 @@ This results in the creation of four docker containers:
 
 These containers exist within a docker network (prestonet) and can communicate with each other. 
 
-### **Step 2: Run prepare.sh**
+
+### `Step 2` : Run prepare.sh
 
 * Creates the minio bucket corresponding to the scale factor.
-* Generates sql queries (create_sfx_tables.sql and q1.sql through q99.sql)
-* Put them under the directory 'framework/sfx/'. This directory is mapped to the presto docker container
-  and can be accessed from within it.
+* Generates sql queries inside `<working_dir>/framework/sfx/`. This directory is mapped to the
+  presto docker container and can be accessed from within it.
 * Generates the TPC-DS dataset and tables.
-* Generates the click log dataset based on the TPC-DS tables.
-* Creates the create and drop table sql query files for click log dataset. Put these files under the
-  directory 'framework/sfx/'.
-
-You can modify the scale factor in the prepare.sh file: 1, 10, 100,...
+* Generates the click log dataset and queries based on the TPC-DS tables.
+* Generates create and drop table sql query files for click log dataset. Save these files inside
+`<working_dir>/framework/sfx/`.
 
 ```shell script
 cd framework/queries
 ./prepare.sh -s <scale_factor> -l <install_path>
 ```
 
-<install_path> is the same path as provided in Step 1.
+`<install_path>` is the same path as provided in Step 1.
 
-### **Step 3: Create click log table and run other queries**
+`<scale_factor>` accepts integer values. `Scale factor = 1` means size of dataset is 1 GB. Usual values
+are 1, 10, 100, ...
 
-Run the create click log table query (sfx is sf1 for SCALE_FACTOR 1 etc.):
+
+### `Step 3` : Create click log table and run other queries
+
+Run the create click log table query (sfx is sf1 for scale factor 1, etc.):
 
 ```shell script
 docker exec -it coordinator /bin/bash
@@ -94,11 +108,13 @@ presto-cli --file /framework/sf1/create_click_log_table.sql
 ```
 
 > [!NOTE]
-> Run queries using the following script:
+> Instead of the aforementioned `Step 3`, it is possible to run queries directly from `localhost` in the following way:
 >
 > ```shell script
 > cd <install_path>/work
-> run_query.sh framework/sf1/create_click_log_table.sql
-> run_query.sh framework/sf1/q1.sql
+> ./run_query.sh framework/sfx/<query_sql_file>
+>
+> # Example: Create the tables for scale factor 1
+> # ./run_query.sh framework/sf1/create_click_log_table.sql
 > ```
 

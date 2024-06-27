@@ -1,1 +1,0 @@
-docker build --no-cache --add-host=postgresql:172.17.0.3 --add-host=minio:172.17.0.2 -t hive .

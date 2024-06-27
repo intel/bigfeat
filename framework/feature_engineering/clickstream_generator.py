@@ -413,7 +413,7 @@ def main():
 
     args = parser.parse_args()
 
-    db = DB()
+    db = DB(schema = args.schema)
 
     # Params (in order):
     # => minio bucket name
