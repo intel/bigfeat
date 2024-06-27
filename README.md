@@ -69,10 +69,10 @@ Example:
 ```
 
 This results in the creation of four docker containers: 
-* Postgresql 
-* hive 
-* minio 
-* coordinator (presto)
+* Postgresql
+* hive
+* MinIO
+* Coordinator (presto)
 
 These containers exist within a docker network (prestonet) and can communicate with each other. 
 
@@ -88,7 +88,7 @@ These containers exist within a docker network (prestonet) and can communicate w
 `<working_dir>/framework/sfx/`.
 
 ```shell script
-cd framework/queries
+cd framework/
 ./prepare.sh -s <scale_factor> -l <install_path>
 ```
 
@@ -100,21 +100,30 @@ are 1, 10, 100, ...
 
 ### `Step 3` : Create click log table and run other queries
 
-Run the create click log table query (sfx is sf1 for scale factor 1, etc.):
+Follow the steps below to create the partitioned `click_log_formatted` table from the generated log
+files stored inside the MinIO S3 bucket. Currently these log files are generated in `parquet` (default)
+or `csv` format.
 
 ```shell script
+# Log into the presto docker container
 docker exec -it coordinator /bin/bash
+
+# Create the partitioned click log table
+presto-cli --file /framework/sfx/create_click_log_table.sql
+
+# Example: when scale factor = 1, replace sfx with sf1
 presto-cli --file /framework/sf1/create_click_log_table.sql
 ```
 
 > [!NOTE]
-> Instead of the aforementioned `Step 3`, it is possible to run queries directly from `localhost` in the following way:
+> Instead of the aforementioned `Step 3`, it is possible to run queries directly from `localhost` in the
+> following way:
 >
 > ```shell script
 > cd <install_path>/work
-> ./run_query.sh framework/sfx/<query_sql_file>
+> ./run_query.sh framework/sfx/<sql_query_file>
 >
-> # Example: Create the tables for scale factor 1
+> # Example: Create the click_log_formatted table for scale factor 1
 > # ./run_query.sh framework/sf1/create_click_log_table.sql
 > ```
 
