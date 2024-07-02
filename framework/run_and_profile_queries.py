@@ -70,16 +70,16 @@ Run and profile queries with scale_factor and store the output in output_dir
 """
 def run( scale_factor = 1,
          output_dir_pattern = '/tmp/sf',
-         query_range = '1..2',
-         reload_db = False,
-         clean_output_dir = False ):
+         query_pattern = 'bf*.sql',
+         reload_db = True,
+         clean_output_dir = True ):
 
     # Ask the user before continuing
     print("****************************")
     print("scale_factor:       " + str(scale_factor))
     print("output_dir_pattern: " + output_dir_pattern)
-    print("query_range:        " + query_range)
-    print("reload_db:          " + str(reload_db))
+    print("query_pattern:        " + query_pattern)
+    # print("reload_db:          " + str(query_pattern))
     print("clean_output_dir:   " + str(clean_output_dir))
     print("****************************")
 
@@ -99,39 +99,45 @@ def run( scale_factor = 1,
         # Purge all perf stat files
         delete_files(output_dir, '*.log')
 
-    # Run drop_tables query
-    if reload_db:
-        # Drop the tables
-        drop_query = "drop_tables.sql"
-        run_and_profile_query("./framework/sf" + str(scale_factor) + "/" + drop_query, 
-                                  output_dir + "/" + drop_query.split('.')[0])
+    # WASAY: I am commenting this out for now as the pipeline is not robust to handle this correctly
 
-        command = "docker exec minio rm -rf data/tpcds-sf" + str(scale_factor) + \
-                                  "-partitioned-dsdgen-parquet"
-        print(command)
-        proc = subprocess.run(command.split(" "))
+    # # Run drop_tables query
+    # if reload_db:
+    #     # Drop the tables
+    #     drop_query = "drop_tables.sql"
+    #     run_and_profile_query("./framework/sf" + str(scale_factor) + "/" + drop_query, 
+    #                               output_dir + "/" + drop_query.split('.')[0])
 
-    # Run prepare to set up bucket and schema for the provided scale factor
-    queries = prepare(scale_factor)
+    #     command = "docker exec minio rm -rf data/tpcds-sf" + str(scale_factor) + \
+    #                               "-partitioned-dsdgen-parquet"
+    #     print(command)
+    #     proc = subprocess.run(command.split(" "))
 
-    # Run create_tables query
-    if reload_db:
-        create_query = "create_tables.sql"
-        run_and_profile_query("./framework/sf" + str(scale_factor) + "/" + create_query, \
-                                  output_dir + "/" + create_query.split('.')[0])
+    # # Run prepare to set up bucket and schema for the provided scale factor
+    # queries = prepare(scale_factor)
+
+    # # Run create_tables query
+    # if reload_db:
+    #     create_query = "create_tables.sql"
+    #     run_and_profile_query("./framework/sf" + str(scale_factor) + "/" + create_query, \
+    #                               output_dir + "/" + create_query.split('.')[0])
 
     # Run queries
-    lower, upper = query_range.split("..")
-    for query in queries:
-        if int(re.findall(r'\d+', query)[-1]) in range(int(lower), int(upper)):
-            return_code = run_and_profile_query("./framework/sf" + str(scale_factor) + "/" + query, \
-                                  output_dir + "/" + query.split('.')[0])
+    
+    query_files = glob.glob("./feature_engineering/queries/"+query_pattern)
+    print(query_files)
 
-    print("*******************")
-    print("scale_factor: " + str(scale_factor))
-    print("output_dir:   " + output_dir)
-    print("query_range:  " + query_range)
-    print("*******************")
+    for query_file in query_files:
+        
+        query_file = query_file.split('/')[-1]
+        
+        return_code = run_and_profile_query("./framework/sf" + str(scale_factor) + "/" + query_file, output_dir + "/" +query_file.replace('.sql',''))
+
+    # print("*******************")
+    # print("scale_factor: " + str(scale_factor))
+    # print("output_dir:   " + output_dir)
+    # print("query_range:  " + query_range)
+    # print("*******************")
 
 
 if __name__ == '__main__':

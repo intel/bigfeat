@@ -329,13 +329,13 @@ generate_dense_feature_map_query(db=db,
 
 # Sparse Feature Map Example
 
-cond1 = 'ws_ship_customer_sk = wr_refunded_customer_sk'
-cond2 = 'r_reason_sk = wr_reason_sk'
-clause = sql_op('AND', [cond1, cond2])
+# cond1 = 'ws_ship_customer_sk = wr_refunded_customer_sk'
+# cond2 = 'r_reason_sk = wr_reason_sk'
+# clause = sql_op('AND', [cond1, cond2])
 
-generate_sparse_feature_map_query(db=db,
-                                  tables=['web_sales','web_returns','reason'],
-                                  column_ids=[[],[8],[2]],
-                                  groupby_clause='wr_refunded_customer_sk',
-                                  where_clause=clause)
+# generate_sparse_feature_map_query(db=db,
+#                                   tables=['web_sales','web_returns','reason'],
+#                                   column_ids=[[],[8],[2]],
+#                                   groupby_clause='wr_refunded_customer_sk',
+#                                   where_clause=clause)
 

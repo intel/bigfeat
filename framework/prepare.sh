@@ -104,7 +104,6 @@ printf "\nPresto Mount Path for Queries: ${PRESTO_TPCDS}\n\n"
 
 ##############################
 
-##############################
 # Copy run_query and run_and_profile_queries.py to the work directory
 cp run_query.sh ${PRESTO_WORK_DIR}
 cp run_and_profile_queries.py ${PRESTO_WORK_DIR}
