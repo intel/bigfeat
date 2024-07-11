@@ -113,6 +113,7 @@ presto-cli --file /framework/sfx/create_click_log_table.sql
 
 # Example: when scale factor = 1, replace sfx with sf1
 presto-cli --file /framework/sf1/create_click_log_table.sql
+```
 
 > [!NOTE]
 > Instead of the aforementioned `Step 3`, it is possible to run queries directly from `localhost` in the
