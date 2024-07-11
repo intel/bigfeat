@@ -128,7 +128,7 @@ docker run -itd --privileged -h postgresql \
         --net prestonet --name postgresql postgres
 
 docker run -d --privileged -p 9083:9083/tcp \
-        --mount type=bind,source=${PRESTO_WORK_DIR}/config/hive_config/hive-site.xml,target=/opt/apache-hive-3.1.3-bin/conf/hive-site.xml \
+        --mount type=bind,source=${PRESTO_WORK_DIR}/config/hive_config/hive-site.xml,target=/opt/apache-hive-4.0.0-bin/conf/hive-site.xml \
         --net prestonet --name hive hive
 
 sleep 10
