@@ -1,3 +1,4 @@
+CREATE TABLE if not exists dense_1 with (format = 'PARQUET') AS
 SELECT map(array[0,
            1,
            2,
@@ -75,7 +76,7 @@ SELECT map(array[0,
            cast(ws_net_paid_inc_tax as decimal(38, 0)),
            cast(ws_net_paid_inc_ship as decimal(38, 0)),
            cast(ws_net_paid_inc_ship_tax as decimal(38, 0)),
-           cast(ws_net_profit as decimal(38, 0))]) as test
+           cast(ws_net_profit as decimal(38, 0))]) as fm_1
 FROM   customer, web_returns, web_sales
 WHERE  (web_sales.ws_bill_customer_sk = customer.c_customer_sk
    and (web_sales.ws_bill_customer_sk = web_returns.wr_refunded_customer_sk

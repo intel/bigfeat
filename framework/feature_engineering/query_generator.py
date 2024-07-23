@@ -26,11 +26,10 @@ def convert_col_type_to_decimal(column, precision=38, scale=0):
         query = f'CAST(from_big_endian_64(xxhash64(to_utf8(\
                        CAST({cols[0]} AS VARCHAR)))) AS DECIMAL({precision},{scale}))'
     else:
-        print("Can't support FP conversion for {column}. Aborting.")
-        sys.exit()
+        print(f"Can't support FP conversion for {column}. Skipping.")
+        return -1
 
     return query
-
 
 """
 Input
@@ -308,10 +307,127 @@ def generate_sparse_feature_map_query(db,
     print(format_sql(query))
     return query
 
+"""
+Input
+    db -- An object of the class DB
+    tables -- List of tables to generate feature maps from e.g., [web_sales,web_returns,reason]
+    column_ids -- IDs of columns corresponding to all join tables e.g., [[],[],[2]].
+    Where_clause -- The where clause specified as a string. Default = None
+    ordering_attributes -- attributes to use to order the max_by
+    group_by_attributes -- provide the groupby clause as a string
+    limit -- limit for the max_by function
+    exclude_columns -- columns to exclude
+    create_table -- If true, generates create table query
+    table_name -- name of the table to create
+    column_name -- name of the column to store the feature map as
+    
+Returns a SQL query as a string to generate sparse feature maps
+"""
+
+def generate_order_by_map_query(
+        db,
+        tables = ["click_log_formatted", "item", "web_sales"],
+        column_ids = None,
+        where_clause = None,
+        ordering_attributes = None,
+        group_by_attributes = ["cl_customer_sk","cl_session_id"],
+        exclude_colums = ['cl_action_date', 'cl_action_time', 'i_wholesale_cost'],
+        create_table = False,
+        table_name = None,
+        column_name = None,
+):
+    
+
+    """
+    Error checks
+    """
+    
+    # Check if tables exist  
+    db.query("show tables")
+    result = db.get_result()
+    for table in tables:
+        if table not in list(result['Table']):
+            print(f'Table {table} does not exist!')
+            return -1
+    
+    # if generating create table queries, check that the table or column name are not none
+    if create_table == True and (column_name == None or table_name == None):
+        print('Table and/or column name is None')
+        return -1
+    
+    """
+    Get all columns from all tables
+    """
+    columns = []
+
+    if column_ids == None:
+
+        for table in tables:
+            sql = f'SHOW columns FROM {table}'
+            db.query(sql)
+            res = db.get_result().to_dict()
+            columns.extend([x + ' ' + y for x,y in zip(res['Column'].values(), res['Type'].values())])
+    else:
+
+        for table, column_id in zip(tables, column_ids):
+            sql = f'SHOW columns FROM {table}'
+            db.query(sql)
+            res = db.get_result().iloc[column_id].to_dict()
+            columns.extend([x + ' ' + y for x,y in zip(res['Column'].values(), res['Type'].values())])
+
+    
+    """
+    Generate decimal conversion subquery for all columns
+    Implement a hash value for char array and varchar data types
+    """
+    hashed_columns = []
+    for column in columns:
+        
+        if column.split(" ")[0] in exclude_colums:
+            print(f"skipping column {column}")
+            continue 
+        converted_column = convert_col_type_to_decimal(column)
+        if converted_column == -1:
+            continue
+        hashed_columns.append(converted_column)
+
+
+    """
+    Generate MAX_BY clauses
+    """
+    max_by_array = []
+
+    for column in hashed_columns:
+        for ordering_attribute in ordering_attributes.values():
+            max_by_array.append(f"{ordering_attribute['operator']}({column},{ordering_attribute['attr']}, {ordering_attribute['limit']})")
+
+
+
+    """
+    Create list of idx and column names to build the map from
+    """
+    list_of_idx = [str(i) for i in range(len(max_by_array))]
+
+    """
+    Assemble the query
+    """
+    
+    if create_table:
+            create_table_clause = f"CREATE TABLE IF NOT EXISTS {table_name}  WITH (format = 'PARQUET') AS "
+            query = f" SELECT MAP(ARRAY[{','.join(list_of_idx)}], ARRAY[{','.join(max_by_array)}]) AS {column_name} FROM {','.join(tables)} WHERE {where_clause} GROUP BY {','.join(group_by_attributes)};"
+            query = create_table_clause + query
+    else:
+        query = f" SELECT MAP(ARRAY[{','.join(list_of_idx)}], ARRAY[{','.join(max_by_array)}]) FROM {','.join(tables)} WHERE {where_clause} GROUP BY {','.join(group_by_attributes)};"
+    
+    print(format_sql(query))
+    return query
+
 
 db= DB()
 
-# Dense Feature Map Example
+"""
+Dens feature map example
+"""
 
 cond1  = 'web_sales.ws_bill_customer_sk = customer.c_customer_sk'
 cond2a = 'web_sales.ws_bill_customer_sk = web_returns.wr_refunded_customer_sk'
@@ -323,19 +439,34 @@ generate_dense_feature_map_query(db=db,
                                  tables=['customer','web_returns','web_sales'],
                                  column_ids=None,
                                  where_clause=clause, 
-                                 feature_map_column_name="test",
-                                 feature_map_table_name="fm_1",
-                                 mode = "alter")
+                                 feature_map_column_name="fm_1",
+                                 feature_map_table_name="dense_1",
+                                 mode = "create")
 
-# Sparse Feature Map Example
 
-# cond1 = 'ws_ship_customer_sk = wr_refunded_customer_sk'
-# cond2 = 'r_reason_sk = wr_reason_sk'
-# clause = sql_op('AND', [cond1, cond2])
+"""
+Sparse feature map, order by example
+"""
 
-# generate_sparse_feature_map_query(db=db,
-#                                   tables=['web_sales','web_returns','reason'],
-#                                   column_ids=[[],[8],[2]],
-#                                   groupby_clause='wr_refunded_customer_sk',
-#                                   where_clause=clause)
+ordering_attributes_mapping = {
 
+    'time' : {'attr' : 'cl_action_date*86400+cl_action_time',
+              'operator' : 'MAX_BY', 
+              'limit' : '10'},
+    'price' : {'attr' : 'i_wholesale_cost', 
+               'operator' : 'MIN_BY',
+               'limit' : '5'},
+
+}
+
+cond1  = 'cl_item_sk = i_item_sk'
+cond2 = "ws_item_sk = cl_item_sk"
+
+
+# two tables
+clause = cond1
+generate_order_by_map_query(db, tables = ['item','click_log_formatted'], where_clause=clause, ordering_attributes=ordering_attributes_mapping, create_table=True, table_name="bf_sparse_order_bt_2_tables", column_name='feature_map')
+
+# three tables 
+clause = sql_op("AND", [cond1, cond2])
+generate_order_by_map_query(db, tables = ['item','click_log_formatted', 'web_sales'], where_clause=clause, ordering_attributes=ordering_attributes_mapping, create_table=True, table_name="bf_sparse_order_bt_3_tables", column_name='feature_map')
