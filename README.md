@@ -1,8 +1,8 @@
-# `bigFEAT` : A Feature Engineering Framework for e-Commerce Clicklogs
+# `Hyperscaler-Features` : A Feature Engineering Framework for e-Commerce Impressions Dataset
 
 <div align="justify">
-This repository contains bigFEAT, a feature engineering framework that closely captures the scale, data types,
-and query workloads of feature engineering pipelines at various large-scale companies.<br />
+This repository contains a feature engineering framework that closely captures the scale, data types, and query
+workloads of feature engineering pipelines at various large-scale companies.<br />
 <br />
 We narrow the scope to the e-Commerce scenario in TPC-DS and introduce User Browser History so that our data
 generator can produce the interaction between features and user-behaviors within a user-session on a sequential
